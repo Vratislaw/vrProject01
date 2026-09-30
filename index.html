@@ -148,7 +148,7 @@ function startAR() {
   ar = true; document.body.classList.add("ar"); sheet.visible = false; controls.enabled = false;
   document.getElementById("mode").textContent = "3D náhled";
   hint.textContent = "Namiřte telefon na značku na listu A4";
-  camera = new THREE.Camera(); scene.add(camera);
+  previewCamera = camera; camera = new THREE.Camera(); scene.add(camera);
   markerRoot.visible = false;
   src = new THREEx.ArToolkitSource({ sourceType: "webcam", sourceWidth: innerWidth > innerHeight ? 640 : 480, sourceHeight: innerWidth > innerHeight ? 480 : 640 });
   src.init(() => {
@@ -162,7 +162,15 @@ function startAR() {
       new THREEx.ArMarkerControls(ctx, markerRoot, { type: "pattern", patternUrl: "marker.patt", size: 1, smooth: true, smoothCount: 5 });
     });
     setTimeout(arResize, 1500);
-  }, err => { showMsg("Kameru se nepodařilo spustit: " + (err && err.message || err) + ". Povolte kameru v prohlížeči."); stopAR(); });
+  }, err => { backToPreview(); showMsg("Kameru se nepodařilo spustit (" + (err && (err.name || err.message) || err) + "). Povolte kameru pro tuto stránku v nastavení prohlížeče a zkuste to znovu."); });
+}
+// camera refused or missing: back to the 3D preview without a reload, so the message stays readable
+let previewCamera = null;
+function backToPreview() {
+  ar = false; src = null; ctx = null; document.body.classList.remove("ar"); sheet.visible = true; markerRoot.visible = true;
+  markerRoot.matrixAutoUpdate = true; markerRoot.matrix.identity();
+  if (previewCamera) camera = previewCamera; controls.enabled = true;
+  document.getElementById("mode").textContent = "Spustit AR"; applyScale();
 }
 function stopAR() { location.reload(); }     // AR.js does not tear down cleanly; a reload restores the 3D preview
 document.getElementById("mode").addEventListener("click", () => ar ? stopAR() : startAR());
