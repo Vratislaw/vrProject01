@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>vrProject01 AR</title>
+<meta name="description" content="Model v rozšířené realitě na tištěné značce, v měřítku 1:200 až 1:5000.">
+<style>
+:root { --ink: #1B2330; --ink-2: #4A5566; --panel: rgba(255,255,255,.92); --line: #DCE1E8; --accent: #1F5FD1; --bg: #E9EDF2; }
+@media (prefers-color-scheme: dark) { :root { --ink: #E6EAF0; --ink-2: #AAB4C2; --panel: rgba(23,30,40,.9); --line: #2A3442; --accent: #5B92FF; --bg: #11161E; color-scheme: dark; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+body.ar { background: #000; }
+canvas { display: block; }
+[hidden] { display: none !important; }
+.bar { position: fixed; left: 0; right: 0; top: 0; padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--panel); border-bottom: 1px solid var(--line); z-index: 10; backdrop-filter: blur(8px); }
+.bar h1 { margin: 0 auto 0 0; font-size: 17px; font-weight: 700; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--ink); font: 600 14px/1 system-ui, sans-serif; padding: 10px 10px; min-height: 40px; font-variant-numeric: tabular-nums; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.btn { border: 1px solid var(--line); background: transparent; color: var(--ink); font: 600 14px/1 system-ui, sans-serif; border-radius: 8px; padding: 10px 12px; min-height: 40px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.bottom { position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 12px calc(10px + env(safe-area-inset-bottom, 0px)); display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; background: var(--panel); border-top: 1px solid var(--line); z-index: 10; backdrop-filter: blur(8px); font-size: 13px; }
+.bottom label { display: flex; gap: 6px; align-items: center; min-height: 32px; }
+.bottom input { width: 18px; height: 18px; accent-color: var(--accent); }
+#hint { margin-left: auto; color: var(--ink-2); }
+#msg { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: min(420px, calc(100% - 32px)); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; z-index: 20; text-align: center; }
+#msg p { margin: 0 0 12px; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>vrProject01 · AR</h1>
+  <div class="seg" id="scales" role="group" aria-label="Měřítko modelu"></div>
+  <button class="btn primary" id="mode" type="button">Spustit AR</button>
+</div>
+<div class="bottom">
+  <label for="t-ter"><input type="checkbox" id="t-ter" checked>Terén</label>
+  <label for="t-bud"><input type="checkbox" id="t-bud" checked>Budovy</label>
+  <label for="t-veg"><input type="checkbox" id="t-veg" checked>Stromy</label>
+  <span id="hint">3D náhled · model na značce A4</span>
+</div>
+<div id="msg" hidden><p id="msg-text"></p><button class="btn primary" id="msg-ok" type="button">OK</button></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ar-js-org/ar.js@3.4.8/three.js/build/ar-threex.js"></script>
+<script>
+// Scale model on a printed marker: 1 scene unit = the marker's black square (120 mm on the A4 sheet).
+const MARKER_M = 0.12;
+const SCALES = [200, 500, 1000, 2000, 5000];
+let scale = 2000, MODEL_W = 600;
+const hint = document.getElementById("hint");
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffffff, 0x6f6658, 0.7));
+const sun = new THREE.DirectionalLight(0xfff6e8, 0.8); sun.position.set(-2, 4, 3); scene.add(sun);
+
+// markerRoot = the printed marker (x right, y up out of the paper, z toward the bottom edge = south)
+const markerRoot = new THREE.Group(); scene.add(markerRoot);
+const model = new THREE.Group(); markerRoot.add(model);
+const srgb = c => new THREE.Color(c).convertSRGBToLinear();
+
+// ---------- the virtual A4 sheet (3D preview only) ----------
+const sheet = new THREE.Group();
+{
+  const u = 1 / MARKER_M;
+  const paper = new THREE.Mesh(new THREE.PlaneGeometry(0.21 * u, 0.297 * u), new THREE.MeshLambertMaterial({ color: 0xf7f7f4 }));
+  paper.rotation.x = -Math.PI / 2; paper.position.set(0, -0.002, 0.03 * u); sheet.add(paper);
+  const tex = new THREE.TextureLoader().load("marker.png"); tex.encoding = THREE.sRGBEncoding;
+  const mk = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 1.2), new THREE.MeshBasicMaterial({ map: tex }));
+  mk.rotation.x = -Math.PI / 2; sheet.add(mk);
+  markerRoot.add(sheet);
+}
+
+// ---------- model ----------
+const parts = {};
+async function load() {
+  const [meta, bin] = await Promise.all([fetch("model.json").then(r => r.json()), fetch("model.bin").then(r => r.arrayBuffer())]);
+  MODEL_W = meta.size_m[0];
+  const arr = n => { const e = meta.index[n]; return e.type === "f32" ? new Float32Array(bin, e.offset, e.count) : new Uint32Array(bin, e.offset, e.count); };
+  const mesh = (p, i, mat, extra) => { const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(arr(p), 3));
+    if (extra) extra(g); g.setIndex(new THREE.BufferAttribute(arr(i), 1)); g.computeVertexNormals(); return new THREE.Mesh(g, mat); };
+  const tex = new THREE.TextureLoader().load("texture.jpg"); tex.encoding = THREE.sRGBEncoding;
+  parts.ter = new THREE.Group();
+  parts.ter.add(mesh("terrain_pos", "terrain_idx", new THREE.MeshLambertMaterial({ map: tex }), g => g.setAttribute("uv", new THREE.BufferAttribute(arr("terrain_uv"), 2))));
+  parts.ter.add(mesh("base_pos", "base_idx", new THREE.MeshLambertMaterial({ color: srgb("#b9ad98"), side: THREE.DoubleSide })));
+  const BR = { s1: "#cfc9bf", s2: "#a9a296", s3: "#8c867c", s4: "#8c867c", s5: "#2a303a", s6: "#4f5664", s7: "#c7ccd4" };
+  parts.bridge = new THREE.Group();
+  for (const [k, c] of Object.entries(BR)) parts.bridge.add(mesh(k + "_pos", k + "_idx", new THREE.MeshLambertMaterial({ color: srgb(c), side: THREE.DoubleSide })));
+  parts.bud = mesh("bud_pos", "bud_idx", new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }),
+    g => { const c = Float32Array.from(arr("bud_col"), v => Math.pow(v, 2.2)); g.setAttribute("color", new THREE.BufferAttribute(c, 3)); });
+  // trees: one unit shape per type (height 1, crown 1), instanced with scale (D, H, D)
+  const T = arr("trees"), n = T.length / 6, kinds = [
+    { c: "#4f8a3c", g: () => new THREE.SphereGeometry(0.5, 7, 5).scale(1, 0.75, 1).translate(0, 0.625, 0) },
+    { c: "#2c5a48", g: () => new THREE.ConeGeometry(0.5, 0.85, 7).translate(0, 0.575, 0) },
+    { c: "#6d8f35", g: () => new THREE.SphereGeometry(0.5, 7, 5).scale(1, 0.9, 1).translate(0, 0.55, 0) },
+    { c: "#86ad52", g: () => new THREE.SphereGeometry(0.5, 6, 4).translate(0, 0.5, 0) }];
+  parts.veg = new THREE.Group();
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+  kinds.forEach((kd, t) => {
+    const idx = []; for (let i = 0; i < n; i++) if (T[i * 6 + 5] === t) idx.push(i);
+    const im = new THREE.InstancedMesh(kd.g(), new THREE.MeshLambertMaterial({ color: srgb(kd.c) }), idx.length);
+    idx.forEach((i, j) => { p.set(T[i * 6], T[i * 6 + 1], T[i * 6 + 2]); s.set(T[i * 6 + 4], T[i * 6 + 3], T[i * 6 + 4]); m4.compose(p, q, s); im.setMatrixAt(j, m4); });
+    parts.veg.add(im);
+  });
+  Object.values(parts).forEach(o => model.add(o));
+  applyScale();
+}
+
+function applyScale() {
+  const k = 1 / (scale * MARKER_M);                       // model metres -> marker units
+  model.scale.setScalar(k);
+  document.querySelectorAll("#scales button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.s === scale)));
+  const w = (MODEL_W / scale * 100).toFixed(scale >= 1000 ? 1 : 0);
+  if (!ar) hint.textContent = `3D náhled · 1:${scale} · model ${w} cm široký`;
+}
+const segs = document.getElementById("scales");
+SCALES.forEach(v => { const b = document.createElement("button"); b.type = "button"; b.dataset.s = v; b.textContent = "1:" + v;
+  b.addEventListener("click", () => { scale = v; applyScale(); }); segs.append(b); });
+for (const [id, key] of [["t-ter", "ter"], ["t-bud", "bud"], ["t-veg", "veg"]])
+  document.getElementById(id).addEventListener("change", e => { if (parts[key]) parts[key].visible = e.target.checked; });
+
+// ---------- 3D preview ----------
+let camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.01, 1000);
+camera.position.set(-2.5, 3.2, 4.2);
+let controls = new THREE.OrbitControls(camera, renderer.domElement); controls.target.set(0, 0.2, 0.4); controls.update();
+function size() { renderer.setSize(innerWidth, innerHeight); if (!ar) { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); } }
+addEventListener("resize", () => { size(); if (ar) arResize(); }); size();
+
+// ---------- AR (AR.js, pattern marker) ----------
+let ar = false, src = null, ctx = null;
+function showMsg(t) { document.getElementById("msg-text").textContent = t; document.getElementById("msg").hidden = false; }
+document.getElementById("msg-ok").addEventListener("click", () => document.getElementById("msg").hidden = true);
+function arResize() {
+  if (!src) return;
+  src.onResizeElement(); src.copyElementSizeTo(renderer.domElement);
+  if (ctx && ctx.arController) src.copyElementSizeTo(ctx.arController.canvas);
+}
+function startAR() {
+  if (!window.isSecureContext || !navigator.mediaDevices) { showMsg("Kamera vyžaduje zabezpečenou stránku (https)."); return; }
+  ar = true; document.body.classList.add("ar"); sheet.visible = false; controls.enabled = false;
+  document.getElementById("mode").textContent = "3D náhled";
+  hint.textContent = "Namiřte telefon na značku na listu A4";
+  camera = new THREE.Camera(); scene.add(camera);
+  markerRoot.visible = false;
+  src = new THREEx.ArToolkitSource({ sourceType: "webcam", sourceWidth: innerWidth > innerHeight ? 640 : 480, sourceHeight: innerWidth > innerHeight ? 480 : 640 });
+  src.init(() => {
+    src.domElement.addEventListener("canplay", () => {
+      ctx = new THREEx.ArToolkitContext({ cameraParametersUrl: "camera_para.dat", detectionMode: "mono", maxDetectionRate: 30 });
+      ctx.init(() => {
+        camera.projectionMatrix.copy(ctx.getProjectionMatrix());
+        const orient = src.domElement.videoWidth > src.domElement.videoHeight ? "landscape" : "portrait";
+        ctx.arController.orientation = orient; ctx.arController.options.orientation = orient; arResize();
+      });
+      new THREEx.ArMarkerControls(ctx, markerRoot, { type: "pattern", patternUrl: "marker.patt", size: 1, smooth: true, smoothCount: 5 });
+    });
+    setTimeout(arResize, 1500);
+  }, err => { showMsg("Kameru se nepodařilo spustit: " + (err && err.message || err) + ". Povolte kameru v prohlížeči."); stopAR(); });
+}
+function stopAR() { location.reload(); }     // AR.js does not tear down cleanly; a reload restores the 3D preview
+document.getElementById("mode").addEventListener("click", () => ar ? stopAR() : startAR());
+
+let seen = false;
+renderer.setAnimationLoop(() => {
+  if (ar && src && src.ready && ctx) {
+    ctx.update(src.domElement);
+    if (markerRoot.visible !== seen) { seen = markerRoot.visible; hint.textContent = seen ? `1:${scale} · model sedí na značce, sever nahoře` : "Namiřte telefon na značku na listu A4"; }
+  } else if (!ar) controls.update();
+  renderer.render(scene, camera);
+});
+load().catch(e => showMsg("Model se nepodařilo načíst: " + e.message));
+</script>
+</body>
+</html>

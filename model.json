@@ -1,0 +1,124 @@
+{
+ "index": {
+  "terrain_pos": {
+   "offset": 0,
+   "count": 66138,
+   "type": "f32"
+  },
+  "terrain_uv": {
+   "offset": 264552,
+   "count": 44092,
+   "type": "f32"
+  },
+  "terrain_idx": {
+   "offset": 440920,
+   "count": 130500,
+   "type": "u32"
+  },
+  "base_pos": {
+   "offset": 962920,
+   "count": 7116,
+   "type": "f32"
+  },
+  "base_idx": {
+   "offset": 991384,
+   "count": 3558,
+   "type": "u32"
+  },
+  "s1_pos": {
+   "offset": 1005616,
+   "count": 21201,
+   "type": "f32"
+  },
+  "s1_idx": {
+   "offset": 1090420,
+   "count": 72846,
+   "type": "u32"
+  },
+  "s2_pos": {
+   "offset": 1381804,
+   "count": 26559,
+   "type": "f32"
+  },
+  "s2_idx": {
+   "offset": 1488040,
+   "count": 56520,
+   "type": "u32"
+  },
+  "s3_pos": {
+   "offset": 1714120,
+   "count": 1818,
+   "type": "f32"
+  },
+  "s3_idx": {
+   "offset": 1721392,
+   "count": 3606,
+   "type": "u32"
+  },
+  "s4_pos": {
+   "offset": 1735816,
+   "count": 3348,
+   "type": "f32"
+  },
+  "s4_idx": {
+   "offset": 1749208,
+   "count": 6918,
+   "type": "u32"
+  },
+  "s5_pos": {
+   "offset": 1776880,
+   "count": 2667,
+   "type": "f32"
+  },
+  "s5_idx": {
+   "offset": 1787548,
+   "count": 5148,
+   "type": "u32"
+  },
+  "s6_pos": {
+   "offset": 1808140,
+   "count": 771,
+   "type": "f32"
+  },
+  "s6_idx": {
+   "offset": 1811224,
+   "count": 804,
+   "type": "u32"
+  },
+  "s7_pos": {
+   "offset": 1814440,
+   "count": 11808,
+   "type": "f32"
+  },
+  "s7_idx": {
+   "offset": 1861672,
+   "count": 15216,
+   "type": "u32"
+  },
+  "bud_pos": {
+   "offset": 1922536,
+   "count": 66300,
+   "type": "f32"
+  },
+  "bud_col": {
+   "offset": 2187736,
+   "count": 66300,
+   "type": "f32"
+  },
+  "bud_idx": {
+   "offset": 2452936,
+   "count": 56703,
+   "type": "u32"
+  },
+  "trees": {
+   "offset": 2679748,
+   "count": 22566,
+   "type": "f32"
+  }
+ },
+ "size_m": [
+  604.0,
+  584.0
+ ],
+ "marker_mm": 120
+}
