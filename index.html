@@ -5,17 +5,31 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>vrProject01 AR</title>
 <meta name="description" content="Model v rozšířené realitě: položte ho na stůl v měřítku 1:50 až 1:5000.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="vrProject01">
 <style>
 :root { --ink: #1B2330; --ink-2: #4A5566; --panel: rgba(255,255,255,.94); --line: #DCE1E8; --accent: #1F5FD1; --bg: #E9EDF2; }
 @media (prefers-color-scheme: dark) { :root { --ink: #E6EAF0; --ink-2: #AAB4C2; --panel: rgba(23,30,40,.92); --line: #2A3442; --accent: #5B92FF; --bg: #11161E; color-scheme: dark; } }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
-.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); overflow: hidden; }
+html, body { overflow-x: hidden; }
 .bar { padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px; display: grid; gap: 8px; background: var(--panel); border-bottom: 1px solid var(--line); }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-h1 { margin: 0 auto 0 0; font-size: 17px; font-weight: 700; }
-.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; max-width: 100%; }
+h1 { margin: 0 auto 0 0; font-size: 17px; font-weight: 700; min-width: 0; }
+.btn.ghost { background: transparent; color: var(--accent); }
+/* fullscreen: only the model and two floating buttons */
+body.full .bar, body.full .foot { display: none; }
+body.full .app { grid-template-rows: minmax(0, 1fr); }
+.float { position: fixed; right: 12px; top: calc(12px + env(safe-area-inset-top, 0px)); display: none; gap: 8px; z-index: 10; }
+body.full .float { display: flex; }
+.float .btn.ghost { background: var(--panel); }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; max-width: 100%; min-width: 0; }
 .seg button { flex: none; border: 0; border-right: 1px solid var(--line); background: transparent; color: var(--ink); font: 600 14px/1 system-ui, sans-serif; padding: 10px 9px; min-height: 40px; font-variant-numeric: tabular-nums; }
 .seg button:last-child { border-right: 0; }
 .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
@@ -33,7 +47,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 <body>
 <div class="app">
   <div class="bar">
-    <div class="row"><h1>vrProject01 · AR</h1><button class="btn" id="ar" type="button">Spustit AR</button></div>
+    <div class="row"><h1>vrProject01 · AR</h1><button class="btn ghost" id="fs" type="button" aria-label="Celá obrazovka">Celá obrazovka</button><button class="btn" id="ar" type="button">Spustit AR</button></div>
     <div class="row">
       <div class="seg" id="scales" role="group" aria-label="Měřítko modelu"></div>
       <div class="seg" id="content" role="group" aria-label="Obsah modelu">
@@ -41,7 +55,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       </div>
     </div>
   </div>
-  <model-viewer id="mv" src="model_2000.glb" alt="3D model" ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" ar-placement="floor"
+  <model-viewer id="mv" src="model_2000.glb" ios-src="model_2000.usdz" alt="3D model" ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed" ar-placement="floor"
     camera-controls touch-action="pan-y" interaction-prompt="none" shadow-intensity="0.7" exposure="1.05" camera-orbit="-35deg 55deg auto">
     <button slot="ar-button" hidden></button>
     <div class="progress" slot="progress-bar" id="progress"></div>
@@ -51,6 +65,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     <div>V AR namiřte telefon na stůl, klepněte na místo (střed kříže na listu A4) a model se na něm zamkne. Otočíte ho dvěma prsty, měřítko zůstává pevné.</div>
   </div>
 </div>
+<div class="float"><button class="btn ghost" id="fs-exit" type="button">Zavřít celou obrazovku</button><button class="btn" id="ar2" type="button">Spustit AR</button></div>
 <div id="msg" hidden><p id="msg-text"></p><button class="btn" id="msg-ok" type="button">OK</button></div>
 <script type="module">
 // Native AR through model-viewer: iPhone AR Quick Look (USDZ generated on the fly), Android WebXR / Scene Viewer.
@@ -61,7 +76,9 @@ const mv = document.getElementById("mv"), sizeEl = document.getElementById("size
 let scale = 2000, content = "all";
 const fmt = m => m >= 1 ? m.toFixed(2).replace(".", ",") + " m" : (m * 100).toFixed(m >= 0.1 ? 0 : 1).replace(".", ",") + " cm";
 function update() {
-  mv.src = `model_${scale}${content === "s" ? "_s" : ""}.glb`;
+  const f = `model_${scale}${content === "s" ? "_s" : ""}`;
+  mv.iosSrc = f + ".usdz";      // Chrome and other iOS browsers need a ready USDZ; Safari could convert on the fly
+  mv.src = f + ".glb";
   document.querySelectorAll("#scales button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.s === scale)));
   document.querySelectorAll("#content button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === content)));
   sizeEl.innerHTML = content === "s" ? `1:${scale} · konstrukce v AR <b>${fmt(STRUCT / scale)}</b> dlouhá`
@@ -79,12 +96,35 @@ const msg = t => { document.getElementById("msg-text").textContent = t; document
 document.getElementById("msg-ok").addEventListener("click", () => document.getElementById("msg").hidden = true);
 mv.addEventListener("error", () => msg("Model se nepodařilo načíst. Zkontrolujte připojení a zkuste to znovu."));
 mv.addEventListener("ar-status", e => { if (e.detail.status === "failed") msg("AR se nepodařilo spustit. Zkuste to znovu, nebo otevřete stránku v Safari (iPhone) či Chrome (Android)."); });
-document.getElementById("ar").addEventListener("click", async () => {
+async function startAR() {
   await customElements.whenDefined("model-viewer");
   if (!mv.loaded) await new Promise(r => mv.addEventListener("load", r, { once: true }));
   if (mv.canActivateAR) mv.activateAR();
   else msg("Tento prohlížeč neumí AR. Na iPhonu použijte Safari nebo Chrome, na Androidu Chrome s podporou ARCore. Na počítači zůstává 3D náhled.");
+}
+document.getElementById("ar").addEventListener("click", startAR);
+document.getElementById("ar2").addEventListener("click", startAR);
+
+// fullscreen: hide the bars; real fullscreen where the browser allows it (not on iPhone: there the page can be added to the
+// home screen and then opens without browser bars)
+const IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+function setFull(on) {
+  document.body.classList.toggle("full", on);
+  const el = document.documentElement;
+  if (on && el.requestFullscreen && !document.fullscreenElement) el.requestFullscreen().catch(() => {});
+  if (!on && document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+}
+document.getElementById("fs").addEventListener("click", () => {
+  setFull(true);
+  let shown = false; try { shown = localStorage.getItem("fs-tip") === "1"; } catch (e) {}
+  if (IOS && !standalone && !shown) {
+    msg("Na iPhonu skryje prohlížeč své lišty jen u aplikace z plochy: klepněte na Sdílet → Přidat na plochu a otevřete vrProject01 z plochy.");
+    try { localStorage.setItem("fs-tip", "1"); } catch (e) {}
+  }
 });
+document.getElementById("fs-exit").addEventListener("click", () => setFull(false));
+document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement && document.body.classList.contains("full") && !IOS) setFull(false); });
 </script>
 </body>
 </html>
