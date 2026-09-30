@@ -52,6 +52,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
 const MARKER_M = 0.12;
 const SCALES = [200, 500, 1000, 2000, 5000];
 let scale = 2000, MODEL_W = 600;
+let ar = false, src = null, ctx = null;   // declared before size()/applyScale() read them (a later "let" would throw)
 const hint = document.getElementById("hint");
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -135,7 +136,6 @@ function size() { renderer.setSize(innerWidth, innerHeight); if (!ar) { camera.a
 addEventListener("resize", () => { size(); if (ar) arResize(); }); size();
 
 // ---------- AR (AR.js, pattern marker) ----------
-let ar = false, src = null, ctx = null;
 function showMsg(t) { document.getElementById("msg-text").textContent = t; document.getElementById("msg").hidden = false; }
 document.getElementById("msg-ok").addEventListener("click", () => document.getElementById("msg").hidden = true);
 function arResize() {
