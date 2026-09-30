@@ -162,7 +162,14 @@ function startAR() {
       new THREEx.ArMarkerControls(ctx, markerRoot, { type: "pattern", patternUrl: "marker.patt", size: 1, smooth: true, smoothCount: 5 });
     });
     setTimeout(arResize, 1500);
-  }, err => { backToPreview(); showMsg("Kameru se nepodařilo spustit (" + (err && (err.name || err.message) || err) + "). Povolte kameru pro tuto stránku v nastavení prohlížeče a zkuste to znovu."); });
+  }, err => {
+    backToPreview();
+    const n = err && err.name;
+    showMsg(n === "NotAllowedError" ? "Přístup ke kameře byl odmítnut. Povolte kameru pro tuto stránku v nastavení prohlížeče a zkuste to znovu."
+      : n === "NotFoundError" ? "Toto zařízení nemá kameru. Otevřete stránku v telefonu."
+      : n === "NotReadableError" ? "Kameru právě používá jiná aplikace. Zavřete ji a zkuste to znovu."
+      : "Kameru se nepodařilo spustit (" + (n || (err && err.message) || err) + ").");
+  });
 }
 // camera refused or missing: back to the 3D preview without a reload, so the message stays readable
 let previewCamera = null;
